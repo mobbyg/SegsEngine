@@ -1,4 +1,4 @@
-<img src="main/splash.png" alt="SEGS Engine Logo" width="600"/>
+<img src="main/splash.png" alt="SEGS Engine Logo" width="450" align="right"/>
 
 # A heavily modified stand-alone fork of the Godot engine
 
