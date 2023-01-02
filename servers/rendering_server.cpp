@@ -179,6 +179,16 @@ Array RenderingServer::_instances_cull_convex_bind(const Array &p_convex, Render
     return to_array(ids);
 }
 
+void RenderingServer::_request_frame_drawn_callback(Callable &&func) {
+    ERR_FAIL_COND(func.is_null());
+
+    request_frame_drawn_callback([ val = eastl::move(func)]() {
+        Variant res;
+        Callable::CallError ce;
+        val.call(nullptr,0,res,ce);
+    });
+}
+
 RenderingEntity RenderingServer::make_sphere_mesh(int p_lats, int p_lons, float p_radius) {
     Vector<Vector3> vertices;
     Vector<Vector3> normals;
@@ -1556,10 +1566,6 @@ Array RenderingServer::_mesh_surface_get_skeleton_aabb_bind(RenderingEntity p_me
     }
     return arr;
 }
-// WRAP : MethodBinder::bind_method\(D_METHOD\("(\w+)"\), \&(\w+)::_(\w+)\)
-// BIND_METHOD_WRAPPER($2, $1, _$3)
-// MethodBinder::bind_method\s*\(\s*D_METHOD\("(\w+)".*\)\s*,\s*\&(\w+)::\1[\s\n]*,[\s\n]*\{(.+)\}\)
-// BIND_METHOD_DEFAULTS\(\2, \1,\3\)
 
 void RenderingServer::_bind_methods() {
     SE_BIND_METHOD(RenderingServer, force_sync);
@@ -1950,13 +1956,13 @@ void RenderingServer::_bind_methods() {
 
     SE_BIND_METHOD(RenderingServer, free_rid); // shouldn't conflict with Object::free()
 
-    SE_BIND_METHOD(RenderingServer, request_frame_drawn_callback);
+    SE_BIND_METHOD_WRAPPER(RenderingServer, request_frame_drawn_callback, _request_frame_drawn_callback);
     SE_BIND_METHOD_WITH_DEFAULTS(RenderingServer, has_changed, DEFVAL(RS::CHANGED_PRIORITY_ANY) );
     SE_BIND_METHOD(RenderingServer, init);
     SE_BIND_METHOD(RenderingServer, finish);
     SE_BIND_METHOD(RenderingServer, get_render_info);
     //    BIND_METHOD(RenderingServer, get_video_adapter_name);
-    //	BIND_METHOD(RenderingServer, get_video_adapter_vendor);
+    //    BIND_METHOD(RenderingServer, get_video_adapter_vendor);
 
 #ifndef _3D_DISABLED
 
@@ -2248,31 +2254,25 @@ void RenderingServer::_bind_methods() {
     ADD_SIGNAL(MethodInfo("frame_post_draw"));
 }
 
-void RenderingServer::_canvas_item_add_style_box(RenderingEntity p_item, const Rect2 &p_rect, const Rect2 &p_source,
-        RenderingEntity p_texture, const Vector<float> &p_margins, const Color &p_modulate) {
-    ERR_FAIL_COND(p_margins.size() != 4);
-    // canvas_item_add_style_box(p_item,p_rect,p_source,p_texture,Vector2(p_margins[0],p_margins[1]),Vector2(p_margins[2],p_margins[3]),true,p_modulate);
-}
-
 void RenderingServer::_camera_set_orthogonal(RenderingEntity p_camera, float p_size, float p_z_near, float p_z_far) {
     camera_set_orthogonal(p_camera, p_size, p_z_near, p_z_far);
 }
 
-void RenderingServer::mesh_add_surface_from_mesh_data(RenderingEntity p_mesh, const Geometry::MeshData &p_mesh_data) {
+void RenderingServer::mesh_add_surface_from_mesh_data(RenderingEntity p_mesh, const GeometryMeshData &p_mesh_data) {
     Vector<Vector3> vertices;
     Vector<Vector3> normals;
     size_t cnt = 0;
-    for (const Geometry::MeshData::Face &f : p_mesh_data.faces) {
+    for (const GeometryMeshData::Face &f : p_mesh_data.faces) {
         cnt += f.indices.size() - 2;
     }
     vertices.reserve(cnt * 3);
     normals.reserve(cnt * 3);
 
-#define _ADD_VERTEX(m_idx)                                                                                             \
-    vertices.emplace_back(p_mesh_data.vertices[f.indices[m_idx]]);                                                        \
+#define _ADD_VERTEX(m_idx)                                                                                                                           \
+    vertices.emplace_back(p_mesh_data.vertices[f.indices[m_idx]]);                                                                                   \
     normals.emplace_back(f.plane.normal);
 
-    for (const Geometry::MeshData::Face &f : p_mesh_data.faces) {
+    for (const GeometryMeshData::Face &f : p_mesh_data.faces) {
         for (int j = 2; j < f.indices.size(); j++) {
             _ADD_VERTEX(0);
             _ADD_VERTEX(j - 1);
@@ -2287,7 +2287,7 @@ void RenderingServer::mesh_add_surface_from_mesh_data(RenderingEntity p_mesh, co
 }
 
 void RenderingServer::mesh_add_surface_from_planes(RenderingEntity p_mesh, const PoolVector<Plane> &p_planes) {
-    Geometry::MeshData mdata = Geometry::build_convex_mesh(p_planes);
+    GeometryMeshData mdata = Geometry::build_convex_mesh(p_planes.toSpan());
     mesh_add_surface_from_mesh_data(p_mesh, eastl::move(mdata));
 }
 
